@@ -16,18 +16,22 @@ p_load(zipcodeR)
 # zip_code_db
 real_codes <- with(zip_code_db, zipcode[!is.na(lat)])
 length(real_codes)
+summary(as.integer(real_codes))
 ```
 
 ```{r}
 p_load(tictoc)
+
 tic()
 zz <- gzfile("zip-distances.csv.gz", "w")
 for (aa in 2:length(real_codes)) {
-  for (bb in 1:aa) {
-    cat(aa, bb, zip_distance(aa,bb), sep=",", file=zz)
-    cat("\n", file=zz)
+  dd <- zip_distance(real_codes[aa],real_codes[1:(aa-1)],units="miles")
+  write.table(dd, zz, quote=FALSE, row.names = FALSE, col.names = FALSE, sep=',')
+  if (aa %% 100 == 0) {
+    cat(aa, "\r")
   }
 }
 close(zz)
 toc("Done")
+
 ```
