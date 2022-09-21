@@ -1,0 +1,33 @@
+---
+title: "Zipcode Gen"
+author: "Derek Slone-Zhen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(pacman)
+```
+
+```{r}
+p_load(zipcodeR)
+# zip_code_db
+real_codes <- with(zip_code_db, zipcode[!is.na(lat)])
+length(real_codes)
+```
+
+```{r}
+p_load(tictoc)
+tic()
+zz <- gzfile("zip-distances.csv.gz", "w")
+for (aa in 2:length(real_codes)) {
+  for (bb in 1:aa) {
+    cat(aa, bb, zip_distance(aa,bb), sep=",", file=zz)
+    cat("\n", file=zz)
+  }
+}
+close(zz)
+toc("Done")
+```
