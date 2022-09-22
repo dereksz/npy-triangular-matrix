@@ -5,3 +5,8 @@
 __pycache__
 *.gz
 *.npy
+*.bin
+*.feather
+*.txt
+*.arrow
+

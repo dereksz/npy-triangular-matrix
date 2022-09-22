@@ -12,26 +12,116 @@ library(pacman)
 ```
 
 ```{r}
+p_load(dplyr, magrittr)
 p_load(zipcodeR)
 # zip_code_db
-real_codes <- with(zip_code_db, zipcode[!is.na(lat)])
-length(real_codes)
+zip_code_db %$%
+  zipcode[!is.na(lat)] %>%
+  sort() ->
+  real_codes
+```
+
+```{r}
+n_codes <- length(real_codes)
+n_codes
+```
+```{r}
 summary(as.integer(real_codes))
 ```
+
+# Write Node List
+
+```{r}
+p_load(feather)
+df = data.frame(zip=as.integer(real_codes))
+write_feather(df, "nodes.feather")
+writeLines(real_codes, "nodes.txt")
+
+```
+
+
+# Write as lower-triangle
 
 ```{r}
 p_load(tictoc)
 
-tic()
+tic("zip-distances.csv.gz")
 zz <- gzfile("zip-distances.csv.gz", "w")
+dh <- file("distances.bin", "wb")
 for (aa in 2:length(real_codes)) {
   dd <- zip_distance(real_codes[aa],real_codes[1:(aa-1)],units="miles")
   write.table(dd, zz, quote=FALSE, row.names = FALSE, col.names = FALSE, sep=',')
+  writeBin(dd[[3]], dh)
   if (aa %% 100 == 0) {
     cat(aa, "\r")
   }
 }
 close(zz)
-toc("Done")
+close(dh)
+toc()
+
+```
+
+## Form pairs list first
+
+```{r}
+p_load(purrr)
+p_load(furrr)
+p_load(tictoc)
+
+tic("Build axies")
+aa <- head(real_codes, n=-1)
+aa <- rep.int(aa, seq(from=n_codes-1, to=1, by=-1))
+bb <- unlist(map(seq(2,n_codes), ~real_codes[.x:n_codes]))
+df <- data.frame(aa=aa, bb=bb)
+toc()
+
+workers=11
+plan(multisession, workers=workers)
+chunk_size <- ((length(aa) - 1L) %/% workersL)+1L
+lowers <- seq(1, length(aa), by=chunk_size)
+uppers <- lowers + chunk_size - 1
+uppers[workers] = length(aa)
+
+tic("Distance Chunks")
+chunks <- future_map2(
+  lowers, uppers,
+  ~zip_distance(aa[.x:.y], bb[.x:.y])[[3]],
+  .progress = TRUE
+)
+toc()
+tic("Consolidate")
+df$distance <- unlist(chunks)
+toc()
+
+```
+
+```{r}
+writeBin(df$distance, "distances.bin")
+
+```
+
+# Write as upper-triangle
+
+The upper triangle has the benefit of using all index over the first few rows,
+rather than not knowing the size until we get to the end.
+
+```{r}
+p_load(tictoc)
+
+tic("zip-distances.csv.gz")
+zz <- gzfile("zip-distances.csv.gz", "w")
+dh <- file("distances.bin", "wb")
+for (aa in 2:length(real_codes)) {
+  dd <- zip_distance(real_codes[aa],real_codes[1:(aa-1)],units="miles")
+  write.table(dd, zz, quote=FALSE, row.names = FALSE, col.names = FALSE, sep=',')
+  writeBin(dd[[3]], dh)
+  if (aa %% 100 == 0) {
+    cat(aa, "\r")
+  }
+}
+close(zz)
+close(dh)
+toc()
 
 ```
